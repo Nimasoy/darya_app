@@ -19,7 +19,7 @@ services:
     ports:
       - "3000:80"
     environment:
-      - VITE_API_URL=http://localhost:5000
+      - VITE_API_URL=https://api.darya-app.space
     depends_on:
       - backend
 
