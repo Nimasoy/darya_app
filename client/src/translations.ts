@@ -1,0 +1,158 @@
+export const translations = {
+  en: {
+    appTitle: 'Darya',
+    appSubtitle: 'Cycle Companion',
+    cycleDay: 'Cycle Day',
+    daysUntilNext: 'Next cycle starts in',
+    day: 'day',
+    days: 'days',
+    logTodayBtn: "Log Today's Symptoms",
+    partnerInsights: 'Partner Insights',
+    howToSupport: 'How to support {name} today:',
+    telegramActive: 'Telegram Alerts Active (ID: {id})',
+    telegramInactive: 'Telegram Notifications not configured.',
+    testAlertBtn: 'Test Notification',
+    testAlertSent: 'Test Alert Sent!',
+    sending: 'Sending...',
+    footerMsg: 'Made for you & your partner',
+    loadingData: 'Aligning cycle data...',
+    errorMsg: 'Could not connect to Darya backend. Please ensure the backend is running.',
+    retryBtn: 'Retry Connection',
+    
+    // Log Drawer
+    checkinTitle: "Today's Check-in",
+    feelingLabel: 'How are you feeling?',
+    flowLabel: 'Flow Intensity',
+    painLabel: 'Cramps / Pain Level',
+    severe: 'Severe',
+    none: 'None',
+    notesLabel: 'Notes (Private or for partner support)',
+    notesPlaceholder: 'Any symptoms, food cravings, or general physical notes...',
+    saveCheckin: 'Save Check-in',
+    savingCheckin: 'Saving Check-in...',
+    
+    // Settings Modal
+    settingsTitle: 'Cycle Settings',
+    yourName: 'Your Name',
+    lastPeriodStart: 'Last Period Start Date',
+    cycleLen: 'Cycle Length',
+    periodLen: 'Period Length',
+    partnerChatId: 'Partner Telegram Chat ID',
+    howToGetId: 'How to get ID?',
+    howToLinkTitle: 'Link partner notifications:',
+    howToLinkSteps: [
+      'Your partner searches for @UserInfoBot (or similar chat ID helper bot) on Telegram to retrieve their numeric Telegram User Chat ID.',
+      'Paste that numeric ID in this field.',
+      'Have your partner start/message your specific Darya Telegram bot so the bot can open the channel.'
+    ],
+    saveSettings: 'Save Settings',
+    savingSettings: 'Saving changes...',
+    languageLabel: 'Application Language',
+    persian: 'Persian (فارسی)',
+    english: 'English',
+    
+    // Phases
+    Menstrual: 'Menstrual Phase',
+    Follicular: 'Follicular Phase',
+    Ovulatory: 'Ovulatory Phase',
+    Luteal: 'Luteal Phase',
+    
+    // Phase descriptions
+    MenstrualDesc: 'Nurture & Rest',
+    FollicularDesc: 'Energy & Creativity',
+    OvulatoryDesc: 'Social & Vitality',
+    LutealDesc: 'Reflect & Nest',
+
+    // Moods
+    Calm: 'Calm',
+    Happy: 'Happy',
+    Sensitive: 'Sensitive',
+    LowEnergy: 'Low Energy',
+    Anxious: 'Anxious',
+    Irritable: 'Irritable',
+    
+    // Flow
+    Light: 'Light',
+    Medium: 'Medium',
+    Heavy: 'Heavy'
+  },
+  fa: {
+    appTitle: 'دریا',
+    appSubtitle: 'همسفر دوره شما',
+    cycleDay: 'روز دوره',
+    daysUntilNext: 'شروع پریود بعدی در',
+    day: 'روز',
+    days: 'روز',
+    logTodayBtn: 'ثبت وضعیت امروز',
+    partnerInsights: 'توصیه‌ها برای همسفرت',
+    howToSupport: 'چطور امروز از {name} حمایت کنی:',
+    telegramActive: 'پیامک تلگرام فعال است (شناسه: {id})',
+    telegramInactive: 'پیامک تلگرام فعال نشده است.',
+    testAlertBtn: 'پیام تست',
+    testAlertSent: 'فرستاده شد!',
+    sending: 'در حال ارسال...',
+    footerMsg: 'ساخته شده برای شما و شریک راهتان',
+    loadingData: 'در حال دریافت اطلاعات...',
+    errorMsg: 'اتصال به سرور برقرار نشد. لطفاً مطمئن شوید سرور در حال اجراست.',
+    retryBtn: 'تلاش مجدد',
+    
+    // Log Drawer
+    checkinTitle: 'ثبت وضعیت امروز',
+    feelingLabel: 'امروز چطوری؟',
+    flowLabel: 'شدت خون‌ریزی',
+    painLabel: 'درد و انقباضات',
+    severe: 'شدید',
+    none: 'هیچی',
+    notesLabel: 'یادداشت (شخصی یا برای راهنمایی همسفر)',
+    notesPlaceholder: 'علائم بدنی، هوس‌های غذایی، یا یادداشت‌های فیزیکی دیگر...',
+    saveCheckin: 'ثبت وضعیت',
+    savingCheckin: 'در حال ثبت...',
+    
+    // Settings Modal
+    settingsTitle: 'تنظیمات دوره',
+    yourName: 'اسم شما',
+    lastPeriodStart: 'تاریخ شروع آخرین پریود',
+    cycleLen: 'طول دوره (سیکل)',
+    periodLen: 'طول پریود',
+    partnerChatId: 'شناسه تلگرام همسفرت',
+    howToGetId: 'شناسه را چطور بگیرم؟',
+    howToLinkTitle: 'راهنمای فعال‌سازی تلگرام:',
+    howToLinkSteps: [
+      'همسفر شما در تلگرام ربات @UserInfoBot را جستجو و استارت کند تا شناسه عددی چت خود را دریافت کند.',
+      'آن شناسه عددی را در این فیلد کپی کنید.',
+      'همسفرتان باید ربات اختصاصی شما را استارت کند تا ربات دسترسی لازم را پیدا کند.'
+    ],
+    saveSettings: 'ذخیره تنظیمات',
+    savingSettings: 'در حال ذخیره...',
+    languageLabel: 'زبان برنامه',
+    persian: 'فارسی (Persian)',
+    english: 'English (انگلیسی)',
+    
+    // Phases
+    Menstrual: 'فاز پریود (قاعدگی)',
+    Follicular: 'فاز فولیکولار',
+    Ovulatory: 'فاز تخمک‌گذاری',
+    Luteal: 'فاز لوتئال',
+    
+    // Phase descriptions
+    MenstrualDesc: 'نیاز به استراحت و خودمراقبتی',
+    FollicularDesc: 'انرژی و خلاقیت بالا',
+    OvulatoryDesc: 'روابط اجتماعی و سرزندگی',
+    LutealDesc: 'درون‌گرایی و آرامش در خانه',
+
+    // Moods
+    Calm: 'آروم',
+    Happy: 'خوشحال',
+    Sensitive: 'حساس',
+    LowEnergy: 'بی‌حوصله',
+    Anxious: 'مضطرب',
+    Irritable: 'کلافه',
+    
+    // Flow
+    Light: 'کم',
+    Medium: 'متوسط',
+    Heavy: 'زیاد'
+  }
+};
+
+export type Language = 'en' | 'fa';
