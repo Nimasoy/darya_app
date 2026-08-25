@@ -18,27 +18,29 @@ namespace Darya.Server.Services
         private readonly HttpClient _httpClient;
         private readonly ILogger<TelegramNotifier> _logger;
         private readonly string? _botToken;
+        private readonly string _apiBaseUrl;
 
         public TelegramNotifier(HttpClient httpClient, IConfiguration configuration, ILogger<TelegramNotifier> logger)
         {
             _httpClient = httpClient;
             _logger = logger;
             _botToken = configuration["Telegram:BotToken"];
+            
+            var baseUrl = configuration["Telegram:ApiBaseUrl"];
+            _apiBaseUrl = string.IsNullOrWhiteSpace(baseUrl) 
+                ? "https://api.telegram.org" 
+                : baseUrl.TrimEnd('/');
         }
 
         public async Task SendMessageAsync(long chatId, string message)
         {
             if (string.IsNullOrWhiteSpace(_botToken))
             {
-                _logger.LogWarning("Telegram Bot Token is not configured in settings. Message to chat {ChatId} logged to console: {Message}", chatId, message);
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine($"[MOCK TELEGRAM NOTIFICATION TO CHAT {chatId}]");
-                Console.WriteLine(message);
-                Console.ResetColor();
+                _logger.LogWarning("Telegram Bot Token is not configured. Notification to chat {ChatId} logged to console.", chatId);
                 return;
             }
 
-            string url = $"https://api.telegram.org/bot{_botToken}/sendMessage";
+            string url = $"{_apiBaseUrl}/bot{_botToken}/sendMessage";
             var payload = new
             {
                 chat_id = chatId,

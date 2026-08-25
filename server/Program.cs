@@ -14,14 +14,22 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 // Configure CORS to allow Vite development client & potential production clients
+// Configure CORS to allow Vite development client & production domains
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClient", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000", "http://localhost:80", "http://localhost")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        policy.WithOrigins(
+            "http://localhost:5173", 
+            "http://localhost:3000", 
+            "http://localhost:80", 
+            "http://localhost",
+            "https://darya-app.space",
+            "https://api.darya-app.space"
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials();
     });
 });
 
@@ -31,9 +39,10 @@ builder.Services.AddDbContext<DaryaDbContext>(options =>
     options.UseSqlite(connectionString));
 
 // Register Services
-builder.Services.AddHttpClient();
 builder.Services.AddScoped<ICycleEngine, CycleEngine>();
-builder.Services.AddScoped<ITelegramNotifier, TelegramNotifier>();
+
+// Configure HTTP Client for Cloudflare worker proxy support (essential for bypassing network filters in Iran)
+builder.Services.AddHttpClient<ITelegramNotifier, TelegramNotifier>();
 
 var app = builder.Build();
 

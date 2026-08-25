@@ -3,10 +3,14 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
+
+# Ingest build argument from docker-compose
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# Custom nginx config to handle SPA routing if necessary, but default serves index.html perfectly for this MVP
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

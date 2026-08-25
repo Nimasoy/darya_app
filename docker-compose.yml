@@ -16,10 +16,10 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=https://api.darya-app.space
     ports:
       - "3000:80"
-    environment:
-      - VITE_API_URL=https://api.darya-app.space
     depends_on:
       - backend
 
