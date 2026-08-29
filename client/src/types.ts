@@ -26,6 +26,9 @@ export interface CycleStatus {
   phaseName: string;
   daysUntilNextPeriod: number;
   partnerAdvice: string;
+  role: 'PrimaryUser' | 'Partner';
+  isLinked: boolean;
+  partnerName: string | null;
 }
 
 export interface DailyLogRequest {

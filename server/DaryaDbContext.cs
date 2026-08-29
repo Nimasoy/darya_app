@@ -16,18 +16,22 @@ namespace Darya.Server.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // Seed a default user
-            var defaultUserId = Guid.Parse("d8a7a8d8-a8d8-4a8d-b8d8-d8a7a8d8a7a8");
-            modelBuilder.Entity<User>().HasData(new User
-            {
-                Id = defaultUserId,
-                Name = "Darya",
-                AverageCycleLength = 28,
-                AveragePeriodLength = 5,
-                LastPeriodStartDate = DateTime.UtcNow.Date.AddDays(-10), // Default start date 10 days ago (Follicular phase)
-                PartnerTelegramChatId = null,
-                Language = "fa"
-            });
+            // Unique index on Email
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
+
+            // Unique index on PartnerCode (allows multiple nulls in PostgreSQL)
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.PartnerCode)
+                .IsUnique();
+
+            // Strict foreign key from DailyLog to User
+            modelBuilder.Entity<DailyLog>()
+                .HasOne(dl => dl.User)
+                .WithMany(u => u.DailyLogs)
+                .HasForeignKey(dl => dl.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: darya-db-prod
+    restart: always
+    environment:
+      POSTGRES_DB: darya
+      POSTGRES_USER: ${DB_USER:-darya_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-darya_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-darya_user} -d darya"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/nimarezaie41203/darya-backend:latest
+    container_name: darya-backend-prod
+    restart: always
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=darya;Username=${DB_USER:-darya_user};Password=${DB_PASSWORD:-darya_password}
+      - Telegram__BotToken=${TELEGRAM_BOT_TOKEN}
+      - Telegram__ApiBaseUrl=${TELEGRAM_API_BASE_URL}
+      - Jwt__Key=${JWT_KEY:-super_secret_darya_key_must_be_long_and_secure_256_bits}
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    image: ghcr.io/nimarezaie41203/darya-frontend:latest
+    container_name: darya-frontend-prod
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_prod_data:

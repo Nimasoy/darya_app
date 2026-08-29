@@ -1,6 +1,23 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: darya-db
+    environment:
+      POSTGRES_DB: darya
+      POSTGRES_USER: darya_user
+      POSTGRES_PASSWORD: darya_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U darya_user -d darya"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     build:
       context: ./server
@@ -9,8 +26,10 @@ services:
       - "5000:5000"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-    volumes:
-      - backend_data:/app/data
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=darya;Username=darya_user;Password=darya_password
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
     build:
@@ -24,4 +43,4 @@ services:
       - backend
 
 volumes:
-  backend_data:
+  postgres_data:
