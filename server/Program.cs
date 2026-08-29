@@ -136,7 +136,7 @@ app.MapPost("/api/auth/register", async (RegisterRequest request, DaryaDbContext
         PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
         Name = string.IsNullOrWhiteSpace(request.Name) ? "User" : request.Name.Trim(),
         Role = role,
-        LastPeriodStartDate = DateTime.UtcNow.Date.AddDays(-10),
+        LastPeriodStartDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(-10), DateTimeKind.Utc),
         Language = "fa"
     };
 
@@ -410,7 +410,9 @@ app.MapPost("/api/logs", async (DailyLogRequest request, HttpContext context, Da
         primaryUser = linkedPrimary;
     }
 
-    var date = request.Date?.Date ?? DateTime.UtcNow.Date;
+    var date = request.Date.HasValue 
+        ? DateTime.SpecifyKind(request.Date.Value.Date, DateTimeKind.Utc)
+        : DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
 
     // Update or Insert log for target primary user
     var existingLog = await db.DailyLogs.FirstOrDefaultAsync(l => l.UserId == primaryUser.Id && l.Date.Date == date);
@@ -539,7 +541,7 @@ app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext cont
         user.AveragePeriodLength = request.AveragePeriodLength > 0 ? request.AveragePeriodLength : user.AveragePeriodLength;
         if (request.LastPeriodStartDate.HasValue)
         {
-            user.LastPeriodStartDate = request.LastPeriodStartDate.Value.Date;
+            user.LastPeriodStartDate = DateTime.SpecifyKind(request.LastPeriodStartDate.Value.Date, DateTimeKind.Utc);
         }
         user.PartnerTelegramChatId = request.PartnerTelegramChatId;
     }
@@ -554,7 +556,7 @@ app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext cont
             primary.AveragePeriodLength = request.AveragePeriodLength > 0 ? request.AveragePeriodLength : primary.AveragePeriodLength;
             if (request.LastPeriodStartDate.HasValue)
             {
-                primary.LastPeriodStartDate = request.LastPeriodStartDate.Value.Date;
+                primary.LastPeriodStartDate = DateTime.SpecifyKind(request.LastPeriodStartDate.Value.Date, DateTimeKind.Utc);
             }
             primary.PartnerTelegramChatId = request.PartnerTelegramChatId;
         }
