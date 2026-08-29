@@ -11,7 +11,7 @@ interface PartnerInsightsProps {
 }
 
 export const PartnerInsights: React.FC<PartnerInsightsProps> = ({ status, lang, onSendTestAlert }) => {
-  const { name, partnerTelegramChatId, partnerAdvice, phase } = status;
+  const { partnerName, partnerTelegramChatId, partnerAdvice, phase } = status;
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const t = translations[lang];
@@ -62,7 +62,7 @@ export const PartnerInsights: React.FC<PartnerInsightsProps> = ({ status, lang, 
         <div className="flex items-start gap-2.5">
           <MessageSquareHeart className="w-5 h-5 mt-0.5 shrink-0 opacity-80" />
           <div>
-            <p className="font-semibold mb-1">{formatHowToSupport(t.howToSupport, name)}</p>
+            <p className="font-semibold mb-1">{formatHowToSupport(t.howToSupport, partnerName || 'Partner')}</p>
             <p className="opacity-90">{partnerAdvice}</p>
           </div>
         </div>

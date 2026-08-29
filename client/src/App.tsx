@@ -491,11 +491,13 @@ function App() {
                   </button>
                 </div>
 
-                <PartnerInsights
-                  status={status}
-                  lang={lang}
-                  onSendTestAlert={handleSendTestAlert}
-                />
+                {status.role === 'Partner' && (
+                  <PartnerInsights
+                    status={status}
+                    lang={lang}
+                    onSendTestAlert={handleSendTestAlert}
+                  />
+                )}
               </>
             )}
           </>
@@ -529,6 +531,7 @@ function App() {
         onGenerateCode={handleGenerateCode}
         onLinkPartner={handleLinkPartner}
         onLogout={handleLogout}
+        onSendTestAlert={handleSendTestAlert}
       />
     </div>
   );

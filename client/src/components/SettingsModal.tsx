@@ -21,6 +21,7 @@ interface SettingsModalProps {
   onGenerateCode: () => Promise<void>;
   onLinkPartner: (code: string) => Promise<void>;
   onLogout: () => void;
+  onSendTestAlert: () => Promise<void>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -33,6 +34,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onGenerateCode,
   onLinkPartner,
   onLogout,
+  onSendTestAlert,
 }) => {
   const [name, setName] = useState('User');
   const [cycleLength, setCycleLength] = useState(28);
@@ -46,6 +48,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [linking, setLinking] = useState(false);
   const [showNotificationTip, setShowNotificationTip] = useState(false);
   const t = translations[lang];
+
+  const [testLoading, setTestLoading] = useState(false);
+  const [testSuccess, setTestSuccess] = useState(false);
+
+  const handleTestClick = async () => {
+    setTestLoading(true);
+    setTestSuccess(false);
+    try {
+      await onSendTestAlert();
+      setTestSuccess(true);
+      setTimeout(() => setTestSuccess(false), 4000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (status) {
@@ -232,13 +251,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {t.howToGetId}
                   </button>
                 </div>
-                <input
-                  type="text"
-                  placeholder="e.g. 581938928 (optional)"
-                  value={chatId}
-                  onChange={(e) => setChatId(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 text-sm bg-slate-50/20"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. 581938928 (optional)"
+                    value={chatId}
+                    onChange={(e) => setChatId(e.target.value)}
+                    className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 text-sm bg-slate-50/20"
+                  />
+                  {chatId.trim() && (
+                    <button
+                      type="button"
+                      onClick={handleTestClick}
+                      disabled={testLoading || testSuccess}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer whitespace-nowrap ${
+                        testSuccess
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                          : 'bg-white hover:bg-purple-50 text-purple-700 border-purple-100'
+                      }`}
+                    >
+                      {testSuccess ? t.testAlertSent : (testLoading ? t.sending : t.testAlertBtn)}
+                    </button>
+                  )}
+                </div>
                 
                 {showNotificationTip && (
                   <div className="mt-2 p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-950 leading-relaxed animate-fade-in">
