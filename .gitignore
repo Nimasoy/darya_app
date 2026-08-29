@@ -1,0 +1,8 @@
+﻿[Bb]in/
+[Oo]bj/
+*.dll
+*.exe
+*.pdb
+node_modules/
+dist/
+build/
