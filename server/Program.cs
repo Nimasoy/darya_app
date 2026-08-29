@@ -371,7 +371,7 @@ app.MapGet("/api/cycle/current", async (HttpContext context, DaryaDbContext db, 
     return Results.Ok(new
     {
         userId = targetUser.Id,
-        name = targetUser.Name,
+        name = user.Name,
         averageCycleLength = targetUser.AverageCycleLength,
         averagePeriodLength = targetUser.AveragePeriodLength,
         lastPeriodStartDate = targetUser.LastPeriodStartDate,
@@ -527,31 +527,38 @@ app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext cont
     var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
     if (user == null) return Results.NotFound();
 
+    // Update settings for authenticated user
+    user.Name = string.IsNullOrWhiteSpace(request.Name) ? user.Name : request.Name.Trim();
+    user.Language = string.IsNullOrWhiteSpace(request.Language) ? user.Language : request.Language;
+
     // Map targets: Partners can update cycle parameters for the primary tracker if linked
     User targetUser = user;
-    if (user.Role == Role.Partner)
+    if (user.Role == Role.PrimaryUser)
     {
-        if (!user.PartnerUserId.HasValue)
+        user.AverageCycleLength = request.AverageCycleLength > 0 ? request.AverageCycleLength : user.AverageCycleLength;
+        user.AveragePeriodLength = request.AveragePeriodLength > 0 ? request.AveragePeriodLength : user.AveragePeriodLength;
+        if (request.LastPeriodStartDate.HasValue)
         {
-            return Results.BadRequest(new { message = "Not linked to a cycle tracker." });
+            user.LastPeriodStartDate = request.LastPeriodStartDate.Value.Date;
         }
-        var primary = await db.Users.FirstOrDefaultAsync(u => u.Id == user.PartnerUserId.Value);
-        if (primary == null) return Results.NotFound();
-        targetUser = primary;
+        user.PartnerTelegramChatId = request.PartnerTelegramChatId;
     }
-
-    // Update settings
-    targetUser.Name = string.IsNullOrWhiteSpace(request.Name) ? targetUser.Name : request.Name.Trim();
-    targetUser.AverageCycleLength = request.AverageCycleLength > 0 ? request.AverageCycleLength : targetUser.AverageCycleLength;
-    targetUser.AveragePeriodLength = request.AveragePeriodLength > 0 ? request.AveragePeriodLength : targetUser.AveragePeriodLength;
-    if (request.LastPeriodStartDate.HasValue)
+    else if (user.Role == Role.Partner && user.PartnerUserId.HasValue)
     {
-        targetUser.LastPeriodStartDate = request.LastPeriodStartDate.Value.Date;
+        var primary = await db.Users.FirstOrDefaultAsync(u => u.Id == user.PartnerUserId.Value);
+        if (primary != null)
+        {
+            targetUser = primary;
+            // Update primary cycle settings, but NEVER overwrite primary user's name
+            primary.AverageCycleLength = request.AverageCycleLength > 0 ? request.AverageCycleLength : primary.AverageCycleLength;
+            primary.AveragePeriodLength = request.AveragePeriodLength > 0 ? request.AveragePeriodLength : primary.AveragePeriodLength;
+            if (request.LastPeriodStartDate.HasValue)
+            {
+                primary.LastPeriodStartDate = request.LastPeriodStartDate.Value.Date;
+            }
+            primary.PartnerTelegramChatId = request.PartnerTelegramChatId;
+        }
     }
-    targetUser.PartnerTelegramChatId = request.PartnerTelegramChatId;
-    
-    // Update language for authenticated user
-    user.Language = string.IsNullOrWhiteSpace(request.Language) ? user.Language : request.Language;
 
     await db.SaveChangesAsync();
 
