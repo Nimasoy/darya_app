@@ -58,7 +58,7 @@ jobs:
         context: ./server
         file: ./server/Dockerfile
         push: true
-        tags: ghcr.io/nimarezaie41203/darya-backend:latest
+        tags: ghcr.io/nimasoy/darya-backend:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -71,7 +71,7 @@ jobs:
         build-args: |
           VITE_API_URL=https://api.darya-app.space
         push: true
-        tags: ghcr.io/nimarezaie41203/darya-frontend:latest
+        tags: ghcr.io/nimasoy/darya-frontend:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
