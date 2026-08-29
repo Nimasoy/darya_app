@@ -45,9 +45,8 @@ jobs:
 
       - name: Deploy Local Containers
         run: |
-          export TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
-          export TELEGRAM_API_BASE_URL="https://darya-telegram-proxy.nimarezaie41203.workers.dev"
-          
-          # Build and launch containers locally on your Mini PC
+          mkdir -p /home/theo/darya-app
+          cp -r . /home/theo/darya-app/
+          cd /home/theo/darya-app
           docker compose down
           docker compose up -d --build
