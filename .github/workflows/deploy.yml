@@ -43,10 +43,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy Local Containers
+      - name: Deploy Containers
         run: |
-          mkdir -p /home/theo/darya-app
-          cp -r . /home/theo/darya-app/
-          cd /home/theo/darya-app
-          docker compose down
-          docker compose up -d --build
+          export TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          export TELEGRAM_API_BASE_URL="https://darya-telegram-proxy.nimarezaie41203.workers.dev"
+          
+          docker compose -p darya down --remove-orphans || true
+          docker compose -p darya up -d --build
