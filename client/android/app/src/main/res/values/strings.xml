@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Darya</string>
+    <string name="title_activity_main">Darya</string>
+    <string name="package_name">space.darya.app</string>
+    <string name="custom_url_scheme">space.darya.app</string>
+</resources>

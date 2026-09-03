@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Settings, Plus, Sparkles, AlertCircle, Heart, User as UserIcon, Mail, Lock, Link } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import type { CycleStatus, FlowIntensity, Mood } from './types';
 import { CycleRing } from './components/CycleRing';
 import { PartnerInsights } from './components/PartnerInsights';
@@ -8,7 +9,10 @@ import { SettingsModal } from './components/SettingsModal';
 import { translations } from './translations';
 import type { Language } from './translations';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || 
+  (Capacitor.isNativePlatform() || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
+    ? 'https://api.darya-app.space'
+    : 'http://localhost:5000');
 
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('darya_token'));

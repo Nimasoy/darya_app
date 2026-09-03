@@ -12,3 +12,7 @@ client/android/build/
 client/android/app/build/
 *.apk
 *.aab
+client/android/app/src/main/assets/public/
+client/android/app/src/main/assets/capacitor.config.json
+client/android/app/src/main/assets/capacitor.plugins.json
+
