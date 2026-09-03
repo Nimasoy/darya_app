@@ -7,6 +7,7 @@ using Darya.Server.Data;
 using Darya.Server.Models;
 using Darya.Server.Services;
 using System.Text.Json.Serialization;
+using Darya.Features.Health;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +45,7 @@ builder.Services.AddDbContext<DaryaDbContext>(options =>
 
 // Register Services
 builder.Services.AddScoped<ICycleEngine, CycleEngine>();
+builder.Services.AddScoped<GetHealthQueryHandler>();
 
 // Configure HTTP Client for Telegram with proxy support (if proxy config is set)
 var proxyUrl = builder.Configuration["Telegram:Proxy"];
@@ -598,6 +600,8 @@ app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext cont
         userId = targetUser.Id
     });
 }).RequireAuthorization();
+
+app.MapHealthEndpoints();
 
 app.Run();
 
