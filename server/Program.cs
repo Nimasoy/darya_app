@@ -8,6 +8,10 @@ using Darya.Server.Models;
 using Darya.Server.Services;
 using System.Text.Json.Serialization;
 using Darya.Features.Health;
+using Darya.Features.Security;
+using Darya.Features.Auth;
+using Darya.Features.Auth.Login;
+using Darya.Features.Auth.Register;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,6 +50,10 @@ builder.Services.AddDbContext<DaryaDbContext>(options =>
 // Register Services
 builder.Services.AddScoped<ICycleEngine, CycleEngine>();
 builder.Services.AddScoped<GetHealthQueryHandler>();
+builder.Services.AddDaryaRateLimiting();
+builder.Services.AddSingleton<ITokenService, TokenService>();
+builder.Services.AddScoped<RegisterCommandHandler>();
+builder.Services.AddScoped<LoginCommandHandler>();
 
 // Configure HTTP Client for Telegram with proxy support (if proxy config is set)
 var proxyUrl = builder.Configuration["Telegram:Proxy"];
@@ -100,6 +108,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseCors("AllowClient");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -107,132 +116,9 @@ app.UseAuthorization();
 app.MapGet("/", () => "Darya Production-grade Multi-Tenant API is running.");
 
 // ==========================================
-// 1. AUTHENTICATION ENDPOINTS
+// 1. AUTHENTICATION ENDPOINTS (CQRS Feature Slice)
 // ==========================================
-
-// POST /api/auth/register
-app.MapPost("/api/auth/register", async (RegisterRequest request, DaryaDbContext db) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
-    {
-        return Results.BadRequest(new { message = "Email and Password are required." });
-    }
-
-    var normalizedEmail = request.Email.Trim().ToLower();
-    var emailExists = await db.Users.AnyAsync(u => u.Email == normalizedEmail);
-    if (emailExists)
-    {
-        return Results.Conflict(new { message = "Email is already registered." });
-    }
-
-    var role = Role.PrimaryUser;
-    if (!string.IsNullOrWhiteSpace(request.Role) && Enum.TryParse<Role>(request.Role, true, out var parsedRole))
-    {
-        role = parsedRole;
-    }
-
-    var user = new User
-    {
-        Id = Guid.NewGuid(),
-        Email = normalizedEmail,
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-        Name = string.IsNullOrWhiteSpace(request.Name) ? "User" : request.Name.Trim(),
-        Role = role,
-        LastPeriodStartDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(-10), DateTimeKind.Utc),
-        Language = "fa"
-    };
-
-    db.Users.Add(user);
-    await db.SaveChangesAsync();
-
-    var token = GenerateJwtToken(user, builder.Configuration);
-
-    return Results.Ok(new
-    {
-        token,
-        user = new
-        {
-            id = user.Id,
-            email = user.Email,
-            name = user.Name,
-            role = user.Role,
-            language = user.Language
-        }
-    });
-});
-
-// POST /api/auth/login
-app.MapPost("/api/auth/login", async (LoginRequest request, DaryaDbContext db) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
-    {
-        return Results.BadRequest(new { message = "Email and Password are required." });
-    }
-
-    var normalizedEmail = request.Email.Trim().ToLower();
-    var user = await db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
-
-    if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-    {
-        return Results.Json(new { message = "Invalid email or password." }, statusCode: StatusCodes.Status401Unauthorized);
-    }
-
-    var token = GenerateJwtToken(user, builder.Configuration);
-
-    return Results.Ok(new
-    {
-        token,
-        user = new
-        {
-            id = user.Id,
-            email = user.Email,
-            name = user.Name,
-            role = user.Role,
-            language = user.Language,
-            partnerUserId = user.PartnerUserId
-        }
-    });
-});
-
-// GET /api/auth/me
-app.MapGet("/api/auth/me", async (HttpContext context, DaryaDbContext db) =>
-{
-    var userIdString = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-    if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
-    {
-        return Results.Json(new { message = "Unauthorized" }, statusCode: StatusCodes.Status401Unauthorized);
-    }
-
-    var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
-    if (user == null)
-    {
-        return Results.NotFound(new { message = "User not found." });
-    }
-
-    string? partnerName = null;
-    if (user.PartnerUserId.HasValue)
-    {
-        var partner = await db.Users.FirstOrDefaultAsync(u => u.Id == user.PartnerUserId.Value);
-        partnerName = partner?.Name;
-    }
-
-    return Results.Ok(new
-    {
-        id = user.Id,
-        email = user.Email,
-        name = user.Name,
-        role = user.Role,
-        averageCycleLength = user.AverageCycleLength,
-        averagePeriodLength = user.AveragePeriodLength,
-        lastPeriodStartDate = user.LastPeriodStartDate,
-        partnerTelegramChatId = user.PartnerTelegramChatId,
-        language = user.Language,
-        partnerCode = user.PartnerCode,
-        partnerUserId = user.PartnerUserId,
-        partnerName,
-        isLinked = user.PartnerUserId.HasValue
-    });
-}).RequireAuthorization();
+app.MapAuthEndpoints();
 
 // ==========================================
 // 2. PARTNER LINKING ENDPOINTS
@@ -605,34 +491,7 @@ app.MapHealthEndpoints();
 
 app.Run();
 
-// JWT Helper token generator
-static string GenerateJwtToken(User user, IConfiguration config)
-{
-    var jwtKey = config["Jwt:Key"] ?? "super_secret_darya_key_must_be_long_and_secure_256_bits";
-    var jwtIssuer = config["Jwt:Issuer"] ?? "DaryaIssuer";
-    var jwtAudience = config["Jwt:Audience"] ?? "DaryaAudience";
-    var expireMinutes = Convert.ToInt32(config["Jwt:ExpireMinutes"] ?? "1440");
 
-    var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-    var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-    var claims = new[]
-    {
-        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-        new Claim(ClaimTypes.Email, user.Email),
-        new Claim(ClaimTypes.Name, user.Name),
-        new Claim(ClaimTypes.Role, user.Role.ToString())
-    };
-
-    var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityToken(
-        issuer: jwtIssuer,
-        audience: jwtAudience,
-        claims: claims,
-        expires: DateTime.UtcNow.AddMinutes(expireMinutes),
-        signingCredentials: credentials);
-
-    return new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().WriteToken(token);
-}
 
 // Helper translator
 static string TranslatePhaseToFarsi(string phaseName) => phaseName switch
@@ -663,17 +522,7 @@ public record UserSetupRequest(
     string? Language
 );
 
-public record RegisterRequest(
-    string Email,
-    string Password,
-    string Name,
-    string Role
-);
 
-public record LoginRequest(
-    string Email,
-    string Password
-);
 
 public record LinkPartnerRequest(
     string Code

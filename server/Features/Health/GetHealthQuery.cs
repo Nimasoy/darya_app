@@ -13,7 +13,7 @@ public class GetHealthQueryHandler
 
     public GetHealthQueryHandler(DaryaDbContext db)
     {
-        _db = db;3
+        _db = db;
     }
 
     public async Task<HealthReportDto> HandleAsync(GetHealthQuery query, CancellationToken cancellationToken = default)
