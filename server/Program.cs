@@ -12,6 +12,9 @@ using Darya.Features.Security;
 using Darya.Features.Auth;
 using Darya.Features.Auth.Login;
 using Darya.Features.Auth.Register;
+using Darya.Server.Services.Notifications;
+using Darya.Features.Notifications;
+using Darya.Features.Notifications.RegisterDeviceToken;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +35,8 @@ builder.Services.AddCors(options =>
             "http://localhost:3000", 
             "http://localhost:80", 
             "http://localhost",
+            "https://localhost",
+            "capacitor://localhost",
             "https://darya-app.space",
             "https://api.darya-app.space"
         )
@@ -54,6 +59,8 @@ builder.Services.AddDaryaRateLimiting();
 builder.Services.AddSingleton<ITokenService, TokenService>();
 builder.Services.AddScoped<RegisterCommandHandler>();
 builder.Services.AddScoped<LoginCommandHandler>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<RegisterDeviceTokenCommandHandler>();
 
 // Configure HTTP Client for Telegram with proxy support (if proxy config is set)
 var proxyUrl = builder.Configuration["Telegram:Proxy"];
@@ -154,7 +161,7 @@ app.MapPost("/api/partner/generate-code", async (HttpContext context, DaryaDbCon
 }).RequireAuthorization();
 
 // POST /api/partner/link
-app.MapPost("/api/partner/link", async (LinkPartnerRequest request, HttpContext context, DaryaDbContext db, ICycleEngine cycleEngine, ITelegramNotifier notifier) =>
+app.MapPost("/api/partner/link", async (LinkPartnerRequest request, HttpContext context, DaryaDbContext db, ICycleEngine cycleEngine, INotificationService notificationService) =>
 {
     var userIdString = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     if (!Guid.TryParse(userIdString, out var userId)) return Results.Unauthorized();
@@ -195,11 +202,15 @@ app.MapPost("/api/partner/link", async (LinkPartnerRequest request, HttpContext 
 
     await db.SaveChangesAsync();
 
-    // Trigger Telegram welcome alert to the Primary User's Telegram chat if set
-    if (primaryUser.PartnerTelegramChatId.HasValue)
+    // Trigger alert across notification channels (Telegram / FCM Push)
+    if (primaryUser.PartnerTelegramChatId.HasValue || primaryUser.PartnerUserId.HasValue)
     {
         var status = cycleEngine.CalculateStatus(primaryUser, DateTime.UtcNow);
-        string message = primaryUser.Language == "fa"
+        string title = primaryUser.Language == "fa" ? "اتصال همسفر با موفقیت انجام شد!" : "Partner Account Linked!";
+        string body = primaryUser.Language == "fa"
+            ? $"کاربر {partnerUser.Name} به عنوان همسفر به حساب شما متصل شد و می‌تواند وضعیت دوره شما را رصد کند. وضعیت امروز: روز {status.CurrentDay} از {primaryUser.AverageCycleLength} (فاز {TranslatePhaseToFarsi(status.PhaseName)})"
+            : $"{partnerUser.Name} has linked successfully as your partner and can now track your cycle updates. Current State: Day {status.CurrentDay} of {primaryUser.AverageCycleLength} ({status.PhaseName} Phase)";
+        string telegramMessage = primaryUser.Language == "fa"
             ? $"🔔 *اتصال همسفر با موفقیت انجام شد!* 🔔\n\n" +
               $"کاربر *{partnerUser.Name}* به عنوان همسفر به حساب شما متصل شد و می‌تواند وضعیت دوره شما را رصد کند.\n\n" +
               $"*وضعیت امروز:* روز {status.CurrentDay} از {primaryUser.AverageCycleLength} (فاز {TranslatePhaseToFarsi(status.PhaseName)})"
@@ -207,7 +218,7 @@ app.MapPost("/api/partner/link", async (LinkPartnerRequest request, HttpContext 
               $"*{partnerUser.Name}* has linked successfully as your partner and can now track your cycle updates.\n\n" +
               $"*Current State:* Day {status.CurrentDay} of {primaryUser.AverageCycleLength} ({status.PhaseName} Phase)";
 
-        await notifier.SendMessageAsync(primaryUser.PartnerTelegramChatId.Value, message);
+        await notificationService.SendPartnerAlertAsync(primaryUser, new NotificationPayload(title, body, telegramMessage));
     }
 
     return Results.Ok(new { message = "Successfully linked to partner.", primaryName = primaryUser.Name });
@@ -277,7 +288,7 @@ app.MapGet("/api/cycle/current", async (HttpContext context, DaryaDbContext db, 
 }).RequireAuthorization();
 
 // POST /api/logs
-app.MapPost("/api/logs", async (DailyLogRequest request, HttpContext context, DaryaDbContext db, ICycleEngine cycleEngine, ITelegramNotifier notifier) =>
+app.MapPost("/api/logs", async (DailyLogRequest request, HttpContext context, DaryaDbContext db, ICycleEngine cycleEngine, INotificationService notificationService) =>
 {
     var userIdString = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     if (!Guid.TryParse(userIdString, out var userId)) return Results.Unauthorized();
@@ -285,68 +296,64 @@ app.MapPost("/api/logs", async (DailyLogRequest request, HttpContext context, Da
     var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
     if (user == null) return Results.NotFound();
 
-    // Determine target primary user to log symptoms for
+    // Determine target Primary User: if caller is Partner, update their primary partner's logs
     User primaryUser = user;
     if (user.Role == Role.Partner)
     {
         if (!user.PartnerUserId.HasValue)
         {
-            return Results.BadRequest(new { message = "You are not linked to a cycle tracker." });
+            return Results.BadRequest(new { message = "Partner is not linked to any user yet." });
         }
-        var linkedPrimary = await db.Users.FirstOrDefaultAsync(u => u.Id == user.PartnerUserId.Value);
-        if (linkedPrimary == null) return Results.NotFound();
-        primaryUser = linkedPrimary;
+        var targetPrimary = await db.Users.FirstOrDefaultAsync(u => u.Id == user.PartnerUserId.Value);
+        if (targetPrimary == null)
+        {
+            return Results.BadRequest(new { message = "Linked primary user could not be found." });
+        }
+        primaryUser = targetPrimary;
     }
 
-    var date = request.Date.HasValue 
-        ? DateTime.SpecifyKind(request.Date.Value.Date, DateTimeKind.Utc)
-        : DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+    var logDate = (request.Date ?? DateTime.UtcNow).Date;
+    logDate = DateTime.SpecifyKind(logDate, DateTimeKind.Utc);
 
-    // Update or Insert log for target primary user
-    var existingLog = await db.DailyLogs.FirstOrDefaultAsync(l => l.UserId == primaryUser.Id && l.Date.Date == date);
+    var existingLog = await db.DailyLogs
+        .FirstOrDefaultAsync(l => l.UserId == primaryUser.Id && l.Date == logDate);
+
     if (existingLog != null)
     {
         existingLog.FlowIntensity = request.FlowIntensity;
         existingLog.Mood = request.Mood;
-        existingLog.PainLevel = Math.Clamp(request.PainLevel, 0, 5);
+        existingLog.PainLevel = request.PainLevel;
         existingLog.Note = request.Note ?? string.Empty;
     }
     else
     {
-        var newLog = new DailyLog
+        var log = new DailyLog
         {
             Id = Guid.NewGuid(),
             UserId = primaryUser.Id,
-            Date = date,
+            Date = logDate,
             FlowIntensity = request.FlowIntensity,
             Mood = request.Mood,
-            PainLevel = Math.Clamp(request.PainLevel, 0, 5),
+            PainLevel = request.PainLevel,
             Note = request.Note ?? string.Empty
         };
-        db.DailyLogs.Add(newLog);
+        db.DailyLogs.Add(log);
     }
 
     await db.SaveChangesAsync();
 
-    // Send Telegram alert if PartnerTelegramChatId is configured on the primary user's account
-    if (primaryUser.PartnerTelegramChatId.HasValue)
+    // Send Alert across channels (Telegram / Push)
+    if (primaryUser.PartnerTelegramChatId.HasValue || primaryUser.PartnerUserId.HasValue)
     {
         var status = cycleEngine.CalculateStatus(primaryUser, DateTime.UtcNow);
-        string message;
+        string message = "";
+        string title = primaryUser.Language == "fa" 
+            ? $"گزارش روزانه {primaryUser.Name}" 
+            : $"Darya Daily Update for {primaryUser.Name}";
+        string body = "";
 
         if (primaryUser.Language == "fa")
         {
-            string moodEmoji = request.Mood switch
-            {
-                Mood.Calm => "🧘 آروم",
-                Mood.Happy => "☀️ خوشحال",
-                Mood.Sensitive => "💖 حساس",
-                Mood.LowEnergy => "🥱 بی‌حوصله",
-                Mood.Anxious => "💭 مضطرب",
-                Mood.Irritable => "⚡ کلافه",
-                _ => request.Mood.ToString()
-            };
-
             string flowName = request.FlowIntensity switch
             {
                 FlowIntensity.None => "هیچی",
@@ -354,6 +361,17 @@ app.MapPost("/api/logs", async (DailyLogRequest request, HttpContext context, Da
                 FlowIntensity.Medium => "متوسط",
                 FlowIntensity.Heavy => "زیاد",
                 _ => request.FlowIntensity.ToString()
+            };
+
+            string moodEmoji = request.Mood switch
+            {
+                Mood.Calm => "🧘 آرامش",
+                Mood.Happy => "☀️ خوشحال",
+                Mood.Sensitive => "💖 حساس و احساسی",
+                Mood.LowEnergy => "🥱 کم‌انرژی و خسته",
+                Mood.Anxious => "💭 مضطرب یا نگران",
+                Mood.Irritable => "⚡ کلافه و زودرنج",
+                _ => request.Mood.ToString()
             };
 
             string painStars = new string('★', request.PainLevel) + new string('☆', 5 - request.PainLevel);
@@ -371,6 +389,8 @@ app.MapPost("/api/logs", async (DailyLogRequest request, HttpContext context, Da
                 $"• یادداشت: {noteText}\n\n" +
                 $"💡 *پیشنهاد برای همسفرش:*\n" +
                 $"{status.PartnerAdvice}";
+
+            body = $"وضعیت: روز {status.CurrentDay} از {primaryUser.AverageCycleLength} (فاز {TranslatePhaseToFarsi(status.PhaseName)}). پیشنهاد: {status.PartnerAdvice}";
         }
         else
         {
@@ -400,16 +420,18 @@ app.MapPost("/api/logs", async (DailyLogRequest request, HttpContext context, Da
                 $"• Note: {noteText}\n\n" +
                 $"💡 *How to support her today:*\n" +
                 $"{status.PartnerAdvice}";
+
+            body = $"Cycle Status: Day {status.CurrentDay} of {primaryUser.AverageCycleLength} ({status.PhaseName} Phase). Advice: {status.PartnerAdvice}";
         }
 
-        await notifier.SendMessageAsync(primaryUser.PartnerTelegramChatId.Value, message);
+        await notificationService.SendPartnerAlertAsync(primaryUser, new NotificationPayload(title, body, message));
     }
 
     return Results.Ok(new { message = "Daily log saved successfully." });
 }).RequireAuthorization();
 
 // POST /api/user/setup
-app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext context, DaryaDbContext db, ICycleEngine cycleEngine, ITelegramNotifier notifier) =>
+app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext context, DaryaDbContext db, ICycleEngine cycleEngine, INotificationService notificationService) =>
 {
     var userIdString = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     if (!Guid.TryParse(userIdString, out var userId)) return Results.Unauthorized();
@@ -423,40 +445,53 @@ app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext cont
 
     // Map targets: Partners can update cycle parameters for the primary tracker if linked
     User targetUser = user;
-    if (user.Role == Role.PrimaryUser)
+    if (user.Role == Role.Partner)
     {
-        user.AverageCycleLength = request.AverageCycleLength > 0 ? request.AverageCycleLength : user.AverageCycleLength;
-        user.AveragePeriodLength = request.AveragePeriodLength > 0 ? request.AveragePeriodLength : user.AveragePeriodLength;
-        if (request.LastPeriodStartDate.HasValue)
+        if (!user.PartnerUserId.HasValue)
         {
-            user.LastPeriodStartDate = DateTime.SpecifyKind(request.LastPeriodStartDate.Value.Date, DateTimeKind.Utc);
+            return Results.BadRequest(new { message = "Partner is not linked to any user yet." });
         }
-        user.PartnerTelegramChatId = request.PartnerTelegramChatId;
+        var targetPrimary = await db.Users.FirstOrDefaultAsync(u => u.Id == user.PartnerUserId.Value);
+        if (targetPrimary == null)
+        {
+            return Results.BadRequest(new { message = "Linked primary user could not be found." });
+        }
+        targetUser = targetPrimary;
     }
-    else if (user.Role == Role.Partner && user.PartnerUserId.HasValue)
+
+    // Apply cycle changes to target user
+    if (request.AverageCycleLength >= 20 && request.AverageCycleLength <= 45)
     {
-        var primary = await db.Users.FirstOrDefaultAsync(u => u.Id == user.PartnerUserId.Value);
-        if (primary != null)
-        {
-            targetUser = primary;
-            // Update primary cycle settings, but NEVER overwrite primary user's name
-            primary.AverageCycleLength = request.AverageCycleLength > 0 ? request.AverageCycleLength : primary.AverageCycleLength;
-            primary.AveragePeriodLength = request.AveragePeriodLength > 0 ? request.AveragePeriodLength : primary.AveragePeriodLength;
-            if (request.LastPeriodStartDate.HasValue)
-            {
-                primary.LastPeriodStartDate = DateTime.SpecifyKind(request.LastPeriodStartDate.Value.Date, DateTimeKind.Utc);
-            }
-            primary.PartnerTelegramChatId = request.PartnerTelegramChatId;
-        }
+        targetUser.AverageCycleLength = request.AverageCycleLength;
+    }
+
+    if (request.AveragePeriodLength >= 2 && request.AveragePeriodLength <= 10)
+    {
+        targetUser.AveragePeriodLength = request.AveragePeriodLength;
+    }
+
+    if (request.LastPeriodStartDate.HasValue)
+    {
+        // Enforce UTC kind for Npgsql PostgreSQL compatibility
+        targetUser.LastPeriodStartDate = DateTime.SpecifyKind(request.LastPeriodStartDate.Value, DateTimeKind.Utc);
+    }
+
+    if (request.PartnerTelegramChatId.HasValue)
+    {
+        targetUser.PartnerTelegramChatId = request.PartnerTelegramChatId.Value;
     }
 
     await db.SaveChangesAsync();
 
-    // Trigger update alert on Telegram if TelegramChatId is set
-    if (targetUser.PartnerTelegramChatId.HasValue)
+    // Send Alert via Notification Service if partner exists or chat configured
+    if (targetUser.PartnerTelegramChatId.HasValue || targetUser.PartnerUserId.HasValue)
     {
         var status = cycleEngine.CalculateStatus(targetUser, DateTime.UtcNow);
-        string message;
+        string message = "";
+        string title = targetUser.Language == "fa" 
+            ? "تنظیمات اپلیکیشن دریا به‌روزرسانی شد" 
+            : "Darya App Configurations Updated!";
+        string body = "";
 
         if (targetUser.Language == "fa")
         {
@@ -466,6 +501,8 @@ app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext cont
                 $"*وضعیت فعلی:* روز {status.CurrentDay} از {targetUser.AverageCycleLength} (فاز {TranslatePhaseToFarsi(status.PhaseName)})\n\n" +
                 $"💡 *نکته امروز:*\n" +
                 $"{status.PartnerAdvice}";
+
+            body = $"تنظیمات دوره توسط {user.Name} تغییر یافت. وضعیت: روز {status.CurrentDay} از {targetUser.AverageCycleLength}. نکته: {status.PartnerAdvice}";
         }
         else
         {
@@ -475,9 +512,11 @@ app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext cont
                 $"*Current State:* Day {status.CurrentDay} of {targetUser.AverageCycleLength} ({status.PhaseName} Phase)\n\n" +
                 $"💡 *Tip for today:*\n" +
                 $"{status.PartnerAdvice}";
+
+            body = $"Cycle settings updated by {user.Name}. State: Day {status.CurrentDay} of {targetUser.AverageCycleLength}. Tip: {status.PartnerAdvice}";
         }
 
-        await notifier.SendMessageAsync(targetUser.PartnerTelegramChatId.Value, message);
+        await notificationService.SendPartnerAlertAsync(targetUser, new NotificationPayload(title, body, message));
     }
 
     return Results.Ok(new 
@@ -488,6 +527,7 @@ app.MapPost("/api/user/setup", async (UserSetupRequest request, HttpContext cont
 }).RequireAuthorization();
 
 app.MapHealthEndpoints();
+app.MapNotificationEndpoints();
 
 app.Run();
 

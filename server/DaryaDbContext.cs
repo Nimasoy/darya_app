@@ -11,6 +11,7 @@ namespace Darya.Server.Data
 
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<DailyLog> DailyLogs { get; set; } = null!;
+        public DbSet<DevicePushToken> DevicePushTokens { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -32,6 +33,18 @@ namespace Darya.Server.Data
                 .WithMany(u => u.DailyLogs)
                 .HasForeignKey(dl => dl.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Strict foreign key from DevicePushToken to User
+            modelBuilder.Entity<DevicePushToken>()
+                .HasOne(dpt => dpt.User)
+                .WithMany(u => u.DevicePushTokens)
+                .HasForeignKey(dpt => dpt.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Unique index on (UserId, Token) to prevent duplicates per user
+            modelBuilder.Entity<DevicePushToken>()
+                .HasIndex(dpt => new { dpt.UserId, dpt.Token })
+                .IsUnique();
         }
     }
 }

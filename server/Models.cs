@@ -57,6 +57,7 @@ namespace Darya.Server.Models
 
         // Navigation
         public ICollection<DailyLog> DailyLogs { get; set; } = new List<DailyLog>();
+        public ICollection<DevicePushToken> DevicePushTokens { get; set; } = new List<DevicePushToken>();
     }
 
     public class DailyLog
@@ -72,4 +73,18 @@ namespace Darya.Server.Models
         // Navigation
         public User User { get; set; } = null!;
     }
+
+    public class DevicePushToken
+    {
+        public Guid Id { get; set; }
+        public Guid UserId { get; set; }
+        public string Token { get; set; } = string.Empty;
+        public string Platform { get; set; } = "android";
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime LastUpdatedAt { get; set; } = DateTime.UtcNow;
+
+        // Navigation
+        public User User { get; set; } = null!;
+    }
 }
+

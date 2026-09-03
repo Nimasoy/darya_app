@@ -1,4 +1,4 @@
-﻿[Bb]in/
+[Bb]in/
 [Oo]bj/
 *.dll
 *.exe
@@ -6,3 +6,9 @@
 node_modules/
 dist/
 build/
+.gradle/
+client/android/.gradle/
+client/android/build/
+client/android/app/build/
+*.apk
+*.aab

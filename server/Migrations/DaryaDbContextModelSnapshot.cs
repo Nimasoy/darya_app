@@ -54,6 +54,37 @@ namespace server.Migrations
                     b.ToTable("DailyLogs");
                 });
 
+            modelBuilder.Entity("Darya.Server.Models.DevicePushToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Token")
+                        .IsUnique();
+
+                    b.ToTable("DevicePushTokens");
+                });
+
             modelBuilder.Entity("Darya.Server.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -122,9 +153,22 @@ namespace server.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Darya.Server.Models.DevicePushToken", b =>
+                {
+                    b.HasOne("Darya.Server.Models.User", "User")
+                        .WithMany("DevicePushTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Darya.Server.Models.User", b =>
                 {
                     b.Navigation("DailyLogs");
+
+                    b.Navigation("DevicePushTokens");
                 });
 #pragma warning restore 612, 618
         }
