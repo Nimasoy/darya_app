@@ -49,5 +49,7 @@ jobs:
           export TELEGRAM_API_BASE_URL="https://darya-telegram-proxy.nimarezaie41203.workers.dev"
           
           docker compose -p darya down --remove-orphans || true
-          docker compose -p darya build --no-cache
-          docker compose -p darya up -d
+          docker compose down --remove-orphans || true
+          docker rm -f darya-db || true
+          docker compose build --no-cache
+          docker compose up -d

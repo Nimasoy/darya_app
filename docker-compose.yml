@@ -1,9 +1,8 @@
-version: '3.8'
+name: darya-app
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: darya-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: darya
