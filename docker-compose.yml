@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: darya-db
+    restart: unless_stopped
     environment:
       POSTGRES_DB: darya
       POSTGRES_USER: darya_user
