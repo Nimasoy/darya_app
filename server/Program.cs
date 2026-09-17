@@ -25,24 +25,17 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNameCaseInsensitive = true;
 });
 
-// Configure CORS to allow React frontend (local and production)
+// Configure CORS to dynamically allow Capacitor and local origins
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClient", policy =>
     {
-        policy.WithOrigins(
-            "http://localhost:5173", 
-            "http://localhost:3000", 
-            "http://localhost:80", 
-            "http://localhost",
-            "https://localhost",
-            "capacitor://localhost",
-            "https://darya-app.space",
-            "https://api.darya-app.space"
-        )
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials();
+        policy
+            .SetIsOriginAllowed(origin => true)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+            .SetPreflightMaxAge(TimeSpan.FromHours(1));
     });
 });
 
@@ -114,8 +107,9 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
+app.UseRouting();
 app.UseCors("AllowClient");
-app.UseRateLimiter();
+// app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
