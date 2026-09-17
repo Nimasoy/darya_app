@@ -15,4 +15,7 @@ client/android/app/build/
 client/android/app/src/main/assets/public/
 client/android/app/src/main/assets/capacitor.config.json
 client/android/app/src/main/assets/capacitor.plugins.json
+firebase-service-account.json
+*firebase*.json
+google-services.json
 

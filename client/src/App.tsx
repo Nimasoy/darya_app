@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Settings, Plus, Sparkles, AlertCircle, Heart, User as UserIcon, Mail, Lock, Link } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 import type { CycleStatus, FlowIntensity, Mood } from './types';
 import { CycleRing } from './components/CycleRing';
 import { PartnerInsights } from './components/PartnerInsights';
@@ -36,6 +37,59 @@ function App() {
   const [partnerCodeState, setPartnerCodeState] = useState<string | null>(null);
 
   const t = translations[lang];
+
+  // Push notifications auto-registration for native Android / iOS
+  useEffect(() => {
+    if (!token || !Capacitor.isNativePlatform()) return;
+
+    let isMounted = true;
+
+    const setupPush = async () => {
+      try {
+        let permStatus = await PushNotifications.checkPermissions();
+        if (permStatus.receive === 'prompt') {
+          permStatus = await PushNotifications.requestPermissions();
+        }
+
+        if (permStatus.receive === 'granted') {
+          await PushNotifications.register();
+        }
+      } catch (err) {
+        console.warn('Push notification initialization warning:', err);
+      }
+    };
+
+    setupPush();
+
+    const regSub = PushNotifications.addListener('registration', async (fcmToken) => {
+      if (!isMounted) return;
+      try {
+        await fetch(`${API_BASE}/api/notifications/device-token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            token: fcmToken.value,
+            platform: Capacitor.getPlatform()
+          })
+        });
+      } catch (err) {
+        console.error('Failed to sync device push token to backend:', err);
+      }
+    });
+
+    const receiveSub = PushNotifications.addListener('pushNotificationReceived', (notif) => {
+      console.log('Push notification received in foreground:', notif);
+    });
+
+    return () => {
+      isMounted = false;
+      regSub.then(sub => sub.remove()).catch(() => {});
+      receiveSub.then(sub => sub.remove()).catch(() => {});
+    };
+  }, [token]);
 
   // Auto-fetch status on mount if token exists
   useEffect(() => {

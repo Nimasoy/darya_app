@@ -2,28 +2,83 @@ namespace Darya.Server.Services.Notifications;
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Darya.Server.Data;
 using Darya.Server.Models;
+using FirebaseAdmin;
+using FirebaseAdmin.Messaging;
+using Google.Apis.Auth.OAuth2;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 public class NotificationService : INotificationService
 {
     private readonly ITelegramNotifier _telegramNotifier;
     private readonly DaryaDbContext _db;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<NotificationService> _logger;
+
+    private static readonly object _initLock = new();
+    private static bool _isFirebaseInitialized = false;
 
     public NotificationService(
         ITelegramNotifier telegramNotifier,
         DaryaDbContext db,
+        IConfiguration configuration,
         ILogger<NotificationService> logger)
     {
         _telegramNotifier = telegramNotifier;
         _db = db;
+        _configuration = configuration;
         _logger = logger;
+    }
+
+    private void EnsureFirebaseInitialized()
+    {
+        if (_isFirebaseInitialized) return;
+
+        lock (_initLock)
+        {
+            if (_isFirebaseInitialized) return;
+
+            try
+            {
+                var configPath = _configuration["Firebase:ServiceAccountPath"]
+                    ?? Environment.GetEnvironmentVariable("FIREBASE_CONFIG_PATH")
+                    ?? Path.Combine(AppContext.BaseDirectory, "firebase-service-account.json");
+
+                // Also check project root / working dir if not in AppContext.BaseDirectory
+                if (!File.Exists(configPath) && File.Exists("firebase-service-account.json"))
+                {
+                    configPath = "firebase-service-account.json";
+                }
+
+                if (File.Exists(configPath))
+                {
+                    if (FirebaseApp.DefaultInstance == null)
+                    {
+                        FirebaseApp.Create(new AppOptions
+                        {
+                            Credential = GoogleCredential.FromFile(configPath)
+                        });
+                        _logger.LogInformation("Firebase Admin SDK initialized successfully using {Path}", configPath);
+                    }
+                    _isFirebaseInitialized = true;
+                }
+                else
+                {
+                    _logger.LogWarning("Firebase service account credentials not found at '{Path}'. Push notifications will be simulated in logs.", configPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to initialize Firebase Admin SDK.");
+            }
+        }
     }
 
     public async Task SendTelegramAsync(long chatId, string message, CancellationToken ct = default)
@@ -46,13 +101,36 @@ public class NotificationService : INotificationService
 
         _logger.LogInformation("Dispatching push alert to {Count} device token(s) for user {UserId}: {Title}", tokens.Count, userId, title);
 
-        // Extensible FCM Push Dispatch Provider
-        // When production FCM credentials (service-account.json / FirebaseApp) are supplied,
-        // this loop delivers via FirebaseMessaging.DefaultInstance.SendMulticastAsync.
-        foreach (var token in tokens)
+        EnsureFirebaseInitialized();
+
+        if (FirebaseApp.DefaultInstance != null)
         {
-            _logger.LogDebug("FCM push queued for token {TokenPrefix}...: Title='{Title}', Body='{Body}'", 
-                token.Length > 10 ? token[..10] : token, title, body);
+            try
+            {
+                var multicastMessage = new MulticastMessage
+                {
+                    Tokens = tokens,
+                    Notification = new FirebaseAdmin.Messaging.Notification
+                    {
+                        Title = title,
+                        Body = body
+                    },
+                    Data = data
+                };
+
+                var response = await FirebaseMessaging.DefaultInstance.SendEachForMulticastAsync(multicastMessage, ct);
+                _logger.LogInformation("FCM dispatch complete for user {UserId}: {SuccessCount} succeeded, {FailureCount} failed out of {TotalCount}",
+                    userId, response.SuccessCount, response.FailureCount, tokens.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error dispatching FCM multicast message to user {UserId}", userId);
+            }
+        }
+        else
+        {
+            _logger.LogInformation("FCM Simulation (Awaiting firebase-service-account.json): Dispatched push notification to {Count} token(s). Title: '{Title}', Body: '{Body}'",
+                tokens.Count, title, body);
         }
     }
 
