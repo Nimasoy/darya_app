@@ -38,17 +38,38 @@ public static class NotificationEndpoints
                 });
             }
 
-            await notificationService.SendPushToUserAsync(
-                userId, 
-                "🌸 Darya Notification Test", 
-                "Push notifications are working! Your device is successfully linked to Darya.", 
-                new System.Collections.Generic.Dictionary<string, string> { { "type", "test" } }, 
-                ct);
+            if (!notificationService.IsFirebaseConfigured)
+            {
+                return Results.Json(new 
+                { 
+                    message = "Firebase Admin SDK is not initialized on the server. Credentials 'firebase-service-account.json' are missing on the production server.",
+                    firebaseConfigured = false
+                }, statusCode: StatusCodes.Status500InternalServerError);
+            }
 
-            return Results.Ok(new 
-            { 
-                message = $"Test push notification sent successfully to {tokenCount} device(s)." 
-            });
+            try
+            {
+                await notificationService.SendPushToUserAsync(
+                    userId, 
+                    "🌸 Darya Notification Test", 
+                    "Push notifications are working! Your device is successfully linked to Darya.", 
+                    new System.Collections.Generic.Dictionary<string, string> { { "type", "test" } }, 
+                    ct);
+
+                return Results.Ok(new 
+                { 
+                    message = $"Test push notification sent successfully to {tokenCount} device(s).",
+                    firebaseConfigured = true
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new 
+                { 
+                    message = $"Failed to dispatch push notification: {ex.Message}",
+                    firebaseConfigured = false
+                }, statusCode: StatusCodes.Status500InternalServerError);
+            }
         })
         .WithName("TestPushNotification")
         .RequireAuthorization()

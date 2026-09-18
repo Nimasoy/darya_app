@@ -59,6 +59,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [pushStatus, setPushStatus] = useState<string>('prompt');
   const [pushLoading, setPushLoading] = useState(false);
   const [pushTestSuccess, setPushTestSuccess] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkPush = async () => {
@@ -82,6 +83,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleEnablePush = async () => {
     setPushLoading(true);
+    setPushError(null);
     try {
       if (Capacitor.isNativePlatform()) {
         let status = await PushNotifications.requestPermissions();
@@ -93,8 +95,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const perm = await Notification.requestPermission();
         setPushStatus(perm);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to enable push notifications:', err);
+      setPushError(err.message || 'Failed to request permissions');
     } finally {
       setPushLoading(false);
     }
@@ -103,14 +106,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleTestPushClick = async () => {
     setPushLoading(true);
     setPushTestSuccess(false);
+    setPushError(null);
     try {
       if (onSendTestPush) {
         await onSendTestPush();
       }
       setPushTestSuccess(true);
       setTimeout(() => setPushTestSuccess(false), 4000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to send test push notification:', err);
+      setPushError(err.message || 'Failed to dispatch test notification');
     } finally {
       setPushLoading(false);
     }
@@ -481,6 +486,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             )}
           </div>
+
+          {pushError && (
+            <div className="mt-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium animate-fade-in leading-relaxed">
+              {pushError}
+            </div>
+          )}
         </div>
 
         {/* LOGOUT BUTTON */}

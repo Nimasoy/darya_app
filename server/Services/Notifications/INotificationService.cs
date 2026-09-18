@@ -15,7 +15,9 @@ public record NotificationPayload(
 
 public interface INotificationService
 {
+    bool IsFirebaseConfigured { get; }
     Task SendPartnerAlertAsync(User primaryUser, NotificationPayload payload, CancellationToken ct = default);
     Task SendTelegramAsync(long chatId, string message, CancellationToken ct = default);
     Task SendPushToUserAsync(Guid userId, string title, string body, Dictionary<string, string>? data = null, CancellationToken ct = default);
 }
+

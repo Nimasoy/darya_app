@@ -48,6 +48,20 @@ jobs:
           export TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
           export TELEGRAM_API_BASE_URL="https://darya-telegram-proxy.nimarezaie41203.workers.dev"
           
+          # Clean up any empty directory created by docker bind mount
+          if [ -d "./server/firebase-service-account.json" ]; then
+            rm -rf ./server/firebase-service-account.json
+          fi
+
+          # Copy persistent firebase-service-account.json from host if present
+          if [ -f "/home/theo/darya-app/server/firebase-service-account.json" ]; then
+            cp "/home/theo/darya-app/server/firebase-service-account.json" ./server/firebase-service-account.json
+            echo "Copied firebase-service-account.json from /home/theo/darya-app/server/"
+          elif [ -f "$HOME/darya-app/server/firebase-service-account.json" ]; then
+            cp "$HOME/darya-app/server/firebase-service-account.json" ./server/firebase-service-account.json
+            echo "Copied firebase-service-account.json from $HOME/darya-app/server/"
+          fi
+
           docker compose -p darya down --remove-orphans || true
           docker compose down --remove-orphans || true
           docker rm -f darya-db || true

@@ -35,6 +35,7 @@ function App() {
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [partnerCodeState, setPartnerCodeState] = useState<string | null>(null);
+  const [bannerNotification, setBannerNotification] = useState<{ title: string; body: string } | null>(null);
 
   const t = translations[lang];
 
@@ -86,9 +87,14 @@ function App() {
 
     const receiveSub = PushNotifications.addListener('pushNotificationReceived', (notif) => {
       console.log('Push notification received in foreground:', notif);
+      setBannerNotification({
+        title: notif.title || '🌸 Darya Notification',
+        body: notif.body || ''
+      });
+      setTimeout(() => setBannerNotification(null), 6000);
     });
 
-    // Request permissions and register
+    // Request permissions, create channel and register
     const setupPush = async () => {
       try {
         let permStatus = await PushNotifications.checkPermissions();
@@ -97,6 +103,21 @@ function App() {
         }
 
         if (permStatus.receive === 'granted') {
+          if (Capacitor.getPlatform() === 'android') {
+            try {
+              await PushNotifications.createChannel({
+                id: 'darya_notifications',
+                name: 'Darya Notifications',
+                description: 'Cycle and partner updates',
+                importance: 5,
+                visibility: 1,
+                sound: 'default',
+                vibration: true
+              });
+            } catch (channelErr) {
+              console.warn('Channel creation warning:', channelErr);
+            }
+          }
           await PushNotifications.register();
         } else {
           console.warn('Push notification permission was not granted:', permStatus.receive);
@@ -506,6 +527,27 @@ function App() {
       className="w-full min-h-screen flex flex-col justify-between max-w-md mx-auto p-4 select-none animate-fade-in" 
       dir={lang === 'fa' ? 'rtl' : 'ltr'}
     >
+      {/* Foreground Push Alert Banner */}
+      {bannerNotification && (
+        <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto animate-fade-in shadow-2xl">
+          <div className="p-3.5 rounded-2xl bg-white/95 backdrop-blur-md border border-purple-200 flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-purple-100 text-purple-700 shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-bold text-slate-800 truncate">{bannerNotification.title}</h4>
+              <p className="text-xs text-slate-600 mt-0.5 leading-snug">{bannerNotification.body}</p>
+            </div>
+            <button 
+              onClick={() => setBannerNotification(null)}
+              className="text-slate-400 hover:text-slate-600 text-xs font-bold p-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Upper Navigation & App Identity */}
       <header className="flex items-center justify-between py-3 mb-2">
         <div className="flex items-center gap-2">
