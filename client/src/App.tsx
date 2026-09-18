@@ -38,33 +38,32 @@ function App() {
 
   const t = translations[lang];
 
-  // Push notifications auto-registration for native Android / iOS
+  // Push notifications auto-registration for native Android / iOS and Web
   useEffect(() => {
-    if (!token || !Capacitor.isNativePlatform()) return;
+    if (!token) return;
 
     let isMounted = true;
 
-    const setupPush = async () => {
-      try {
-        let permStatus = await PushNotifications.checkPermissions();
-        if (permStatus.receive === 'prompt') {
-          permStatus = await PushNotifications.requestPermissions();
+    if (!Capacitor.isNativePlatform()) {
+      // Web Browser Notification Permission
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'default') {
+          Notification.requestPermission().then(res => {
+            console.log('Web notification permission result:', res);
+          }).catch(err => {
+            console.warn('Web notification permission error:', err);
+          });
         }
-
-        if (permStatus.receive === 'granted') {
-          await PushNotifications.register();
-        }
-      } catch (err) {
-        console.warn('Push notification initialization warning:', err);
       }
-    };
+      return;
+    }
 
-    setupPush();
-
+    // Native Capacitor Push Notifications
     const regSub = PushNotifications.addListener('registration', async (fcmToken) => {
       if (!isMounted) return;
+      console.log('FCM registration token successfully acquired:', fcmToken.value);
       try {
-        await fetch(`${API_BASE}/api/notifications/device-token`, {
+        const res = await fetch(`${API_BASE}/api/notifications/device-token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -75,18 +74,44 @@ function App() {
             platform: Capacitor.getPlatform()
           })
         });
+        console.log('Server device token registration response status:', res.status);
       } catch (err) {
         console.error('Failed to sync device push token to backend:', err);
       }
+    });
+
+    const errSub = PushNotifications.addListener('registrationError', (error) => {
+      console.error('Push notification registration error:', error);
     });
 
     const receiveSub = PushNotifications.addListener('pushNotificationReceived', (notif) => {
       console.log('Push notification received in foreground:', notif);
     });
 
+    // Request permissions and register
+    const setupPush = async () => {
+      try {
+        let permStatus = await PushNotifications.checkPermissions();
+        if (permStatus.receive !== 'granted') {
+          permStatus = await PushNotifications.requestPermissions();
+        }
+
+        if (permStatus.receive === 'granted') {
+          await PushNotifications.register();
+        } else {
+          console.warn('Push notification permission was not granted:', permStatus.receive);
+        }
+      } catch (err) {
+        console.warn('Push notification initialization error:', err);
+      }
+    };
+
+    setupPush();
+
     return () => {
       isMounted = false;
       regSub.then(sub => sub.remove()).catch(() => {});
+      errSub.then(sub => sub.remove()).catch(() => {});
       receiveSub.then(sub => sub.remove()).catch(() => {});
     };
   }, [token]);
@@ -316,6 +341,31 @@ function App() {
       partnerTelegramChatId: status.partnerTelegramChatId,
       language: lang,
     });
+  };
+
+  const handleSendTestPush = async () => {
+    if (!token) return;
+
+    if (!Capacitor.isNativePlatform() && typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification('🌸 Darya Push Test', {
+          body: 'Web browser notifications are working successfully!',
+          icon: '/favicon.ico'
+        });
+      }
+    }
+
+    const res = await fetch(`${API_BASE}/api/notifications/test-push`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || 'Failed to send test push notification');
+    }
   };
 
   // ==========================================
@@ -590,6 +640,7 @@ function App() {
         onLinkPartner={handleLinkPartner}
         onLogout={handleLogout}
         onSendTestAlert={handleSendTestAlert}
+        onSendTestPush={handleSendTestPush}
       />
     </div>
   );

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Calendar, RefreshCw, Send, LogOut, Link, Check, Code } from 'lucide-react';
+import { X, Save, Calendar, RefreshCw, Send, LogOut, Link, Check, Code, Bell, BellRing } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 import type { CycleStatus } from '../types';
 import { translations } from '../translations';
 import type { Language } from '../translations';
@@ -22,6 +24,7 @@ interface SettingsModalProps {
   onLinkPartner: (code: string) => Promise<void>;
   onLogout: () => void;
   onSendTestAlert: () => Promise<void>;
+  onSendTestPush?: () => Promise<void>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -35,6 +38,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onLinkPartner,
   onLogout,
   onSendTestAlert,
+  onSendTestPush,
 }) => {
   const [name, setName] = useState('User');
   const [cycleLength, setCycleLength] = useState(28);
@@ -51,6 +55,66 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const [testLoading, setTestLoading] = useState(false);
   const [testSuccess, setTestSuccess] = useState(false);
+
+  const [pushStatus, setPushStatus] = useState<string>('prompt');
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushTestSuccess, setPushTestSuccess] = useState(false);
+
+  useEffect(() => {
+    const checkPush = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const status = await PushNotifications.checkPermissions();
+          setPushStatus(status.receive);
+        } catch {
+          setPushStatus('unsupported');
+        }
+      } else if (typeof window !== 'undefined' && 'Notification' in window) {
+        setPushStatus(Notification.permission);
+      } else {
+        setPushStatus('unsupported');
+      }
+    };
+    if (isOpen) {
+      checkPush();
+    }
+  }, [isOpen]);
+
+  const handleEnablePush = async () => {
+    setPushLoading(true);
+    try {
+      if (Capacitor.isNativePlatform()) {
+        let status = await PushNotifications.requestPermissions();
+        setPushStatus(status.receive);
+        if (status.receive === 'granted') {
+          await PushNotifications.register();
+        }
+      } else if (typeof window !== 'undefined' && 'Notification' in window) {
+        const perm = await Notification.requestPermission();
+        setPushStatus(perm);
+      }
+    } catch (err) {
+      console.error('Failed to enable push notifications:', err);
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleTestPushClick = async () => {
+    setPushLoading(true);
+    setPushTestSuccess(false);
+    try {
+      if (onSendTestPush) {
+        await onSendTestPush();
+      }
+      setPushTestSuccess(true);
+      setTimeout(() => setPushTestSuccess(false), 4000);
+    } catch (err) {
+      console.error('Failed to send test push notification:', err);
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const handleTestClick = async () => {
     setTestLoading(true);
@@ -365,6 +429,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               )}
             </div>
           )}
+        </div>
+
+        {/* ========================================== */}
+        {/* PUSH NOTIFICATIONS SECTION */}
+        {/* ========================================== */}
+        <div className="mt-6 pt-5 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-purple-600" />
+              <h3 className="text-sm font-bold text-slate-800">{t.pushNotifSection}</h3>
+            </div>
+            {pushStatus === 'granted' ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                <Check className="w-3 h-3" />
+                {t.pushActive}
+              </span>
+            ) : (
+              <span className="text-[11px] font-medium text-slate-400">
+                {t.pushInactive}
+              </span>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            {pushStatus !== 'granted' && pushStatus !== 'unsupported' && (
+              <button
+                type="button"
+                onClick={handleEnablePush}
+                disabled={pushLoading}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xs font-semibold rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
+              >
+                <BellRing className="w-3.5 h-3.5" />
+                <span>{pushLoading ? t.sending : t.enablePushBtn}</span>
+              </button>
+            )}
+
+            {pushStatus === 'granted' && onSendTestPush && (
+              <button
+                type="button"
+                onClick={handleTestPushClick}
+                disabled={pushLoading || pushTestSuccess}
+                className={`w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl border transition cursor-pointer ${
+                  pushTestSuccess
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : 'bg-white hover:bg-purple-50 text-purple-700 border-purple-200'
+                }`}
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{pushTestSuccess ? t.testPushSent : (pushLoading ? t.sending : t.testPushBtn)}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* LOGOUT BUTTON */}
