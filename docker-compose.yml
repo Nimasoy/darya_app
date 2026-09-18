@@ -28,6 +28,9 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Database=darya;Username=darya_user;Password=darya_password
+      - FIREBASE_CONFIG_PATH=/app/firebase-service-account.json
+    volumes:
+      - ./server/firebase-service-account.json:/app/firebase-service-account.json:ro
     depends_on:
       postgres:
         condition: service_healthy
