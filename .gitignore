@@ -19,3 +19,14 @@ firebase-service-account.json
 *firebase*.json
 google-services.json
 
+# Visual Studio / IDE cache
+.vs/
+**/[Bb]in/
+**/[Oo]bj/
+*.user
+*.suo
+
+# Local databases
+*.db
+*.sqlite
+server/darya.db
